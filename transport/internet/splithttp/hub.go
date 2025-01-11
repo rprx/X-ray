@@ -166,6 +166,7 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 				errors.LogInfoInner(context.Background(), err, "failed to upload (PushReader)")
 				writer.WriteHeader(http.StatusConflict)
 			} else {
+				writer.Header().Set("Content-Type", "text/event-stream")
 				writer.WriteHeader(http.StatusOK)
 				if request.ProtoMajor != 1 && len(clientVer) > 0 && clientVer[0] >= 25 {
 					paddingLen := h.config.GetNormalizedXPaddingBytes().rand()
