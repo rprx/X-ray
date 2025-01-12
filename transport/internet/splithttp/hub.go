@@ -166,14 +166,26 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 				errors.LogInfoInner(context.Background(), err, "failed to upload (PushReader)")
 				writer.WriteHeader(http.StatusConflict)
 			} else {
-				writer.Header().Set("Content-Type", "text/event-stream")
+				writer.Header().Set("X-Accel-Buffering", "no")
+				writer.Header().Set("Cache-Control", "no-store")
+				if !h.config.NoSSEHeader {
+					writer.Header().Set("Content-Type", "text/event-stream")
+				}
 				writer.WriteHeader(http.StatusOK)
 				if request.ProtoMajor != 1 && len(clientVer) > 0 && clientVer[0] >= 25 {
-					paddingLen := h.config.GetNormalizedXPaddingBytes().rand()
-					if paddingLen > 0 {
-						writer.Write(bytes.Repeat([]byte{'0'}, int(paddingLen)))
-					}
-					writer.(http.Flusher).Flush()
+					go func() {
+						for {
+							paddingLen := h.config.GetNormalizedXPaddingBytes().rand()
+							if paddingLen > 0 {
+								_, err := writer.Write(bytes.Repeat([]byte{'0'}, int(paddingLen)))
+								if err != nil {
+									break
+								}
+								writer.(http.Flusher).Flush()
+							}
+							time.Sleep(time.Duration(RangeConfig{From: 20, To: 80}.rand()) * time.Second)
+						}
+					}()
 				}
 				<-request.Context().Done()
 			}
